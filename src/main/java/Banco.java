@@ -4,44 +4,54 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.HashMap;
 
-public class Banco{
+public class Banco {
 
+    // Evita condiciones de carrera al manejar múltiples clientes
     private final HashMap<Integer, Object> locks = new HashMap<>();
 
     private Object obtenerLock(int codigoCliente) {
         synchronized (locks) {
-            if (!locks.containsKey(codigoCliente)) {
-                locks.put(codigoCliente, new Object());
-            }
-            return locks.get(codigoCliente);
+            return locks.computeIfAbsent(codigoCliente, k -> new Object());
         }
     }
 
-    public boolean retirarDinero(int codigoCliente, double monto) {
+    public String retirarDinero(String codigoClienteStr, double monto) {
+        int codigoCliente;
+
+        // Validar que el código sea un número entero
+        try {
+            codigoCliente = Integer.parseInt(codigoClienteStr);
+        } catch (NumberFormatException e) {
+            return "ERROR: El código de cliente debe ser numérico.";
+        }
+
         Object lock = obtenerLock(codigoCliente);
 
         synchronized (lock) {
             try (Connection conexion = ConexionBaseDatos.obtenerConexion()) {
+
                 conexion.setAutoCommit(false);
 
-                String sqlSelect = "SELECT saldo FROM usuarios WHERE id = ?";
+                // Consulta del saldo actual
+                String sqlSelect = "SELECT saldo FROM clientes WHERE id = ?";
                 try (PreparedStatement psSelect = conexion.prepareStatement(sqlSelect)) {
                     psSelect.setInt(1, codigoCliente);
                     ResultSet rs = psSelect.executeQuery();
 
                     if (!rs.next()) {
-                        System.out.println("Cliente no existe: " + codigoCliente);
-                        return false;
+                        conexion.rollback();
+                        return "ERROR: El código de cliente no existe en el banco.";
                     }
 
                     double saldoActual = rs.getDouble("saldo");
 
                     if (saldoActual < monto) {
-                        System.out.println("Fondos insuficientes para cliente " + codigoCliente);
-                        return false;
+                        conexion.rollback();
+                        return "ERROR: Fondos insuficientes. Saldo actual: $" + String.format("%.2f", saldoActual);
                     }
 
-                    String sqlUpdate = "UPDATE usuarios SET saldo = saldo - ? WHERE id = ?";
+                    // Actualizar el saldo
+                    String sqlUpdate = "UPDATE clientes SET saldo = saldo - ? WHERE id = ?";
                     try (PreparedStatement psUpdate = conexion.prepareStatement(sqlUpdate)) {
                         psUpdate.setDouble(1, monto);
                         psUpdate.setInt(2, codigoCliente);
@@ -49,18 +59,19 @@ public class Banco{
                     }
 
                     conexion.commit();
-                    System.out.println("Retiro exitoso de cliente " + codigoCliente + ". Saldo restante: " + (saldoActual - monto));
-                    return true;
+
+                    double nuevoSaldo = saldoActual - monto;
+                    return "EXITO: Retiro exitoso. Saldo restante: $" + String.format("%.2f", nuevoSaldo);
 
                 } catch (SQLException e) {
                     conexion.rollback();
-                    e.printStackTrace();
-                    return false;
+                    System.err.println("❌ Error SQL en la transacción: " + e.getMessage());
+                    return "ERROR: Fallo en la transacción.";
                 }
 
             } catch (SQLException e) {
-                e.printStackTrace();
-                return false;
+                System.err.println("❌ Error al conectar con la base de datos: " + e.getMessage());
+                return "ERROR: No se pudo conectar con la base de datos.";
             }
         }
     }
