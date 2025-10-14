@@ -55,7 +55,7 @@ public class Cliente extends Thread {
 
         } catch (Exception e) {
             if (interfaz != null) {
-                interfaz.log("Error con ATM: " + e.getMessage());
+                interfaz.log("**ERROR ATM: " + e.getMessage() + "**");
             }
         } finally {
             try {
@@ -71,8 +71,6 @@ public class Cliente extends Thread {
         }
     }
 
-    // ------------------- Métodos de "Banco" incorporados -------------------
-
     private Object obtenerLock(int codigoCliente) {
         synchronized (locks) {
             locks.putIfAbsent(codigoCliente, new Object());
@@ -81,7 +79,11 @@ public class Cliente extends Thread {
     }
 
     public String retirarDinero(int codigoCliente, double monto) {
-        synchronized (obtenerLock(codigoCliente)) {
+
+        Object lock = obtenerLock(codigoCliente);
+
+        synchronized (lock) {
+
             try (Connection conexion = ConexionBaseDatos.obtenerConexion()) {
 
                 conexion.setAutoCommit(false);
@@ -93,14 +95,14 @@ public class Cliente extends Thread {
 
                 if (!rs.next()) {
                     conexion.rollback();
-                    return "ERROR: Cliente no encontrado.";
+                    return "**ERROR: CLIENTE NO ENCONTRADO**";
                 }
 
                 double saldoActual = rs.getDouble("saldo");
 
                 if (saldoActual < monto) {
                     conexion.rollback();
-                    return "ERROR: Fondos insuficientes.";
+                    return "**ERROR: FONDOS INSUFICIENTES**";
                 }
 
                 PreparedStatement psUpdate = conexion.prepareStatement(
@@ -110,10 +112,10 @@ public class Cliente extends Thread {
                 psUpdate.executeUpdate();
 
                 conexion.commit();
-                return "EXITO: Retiro completado. Saldo restante: $" + String.format("%.2f", saldoActual - monto);
+                return "--Retiro completado. Saldo restante: $" + String.format("%.2f", saldoActual - monto);
 
             } catch (SQLException e) {
-                return "ERROR: Problema durante la transacción.";
+                return "**ERROR: PROBLEMA DURANTE LA TRANSACCION**";
             }
         }
     }

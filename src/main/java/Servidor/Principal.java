@@ -16,7 +16,7 @@ public class Principal {
             try {
                 int puerto = Integer.parseInt(puertoStr);
 
-                // Crear y arrancar el servidor solo cuando se presione el botón
+                // Crear y arrancar el servidor
                 Servidor servidor = new Servidor(interfaz, puerto);
                 servidor.start();
 

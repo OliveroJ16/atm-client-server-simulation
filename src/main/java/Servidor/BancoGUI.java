@@ -37,6 +37,7 @@ public class BancoGUI extends JFrame {
         // Panel inferior - Log
         txtLog = new JTextArea(15, 30);
         txtLog.setEditable(false);
+        txtLog.setFont(new Font("Monospaced", Font.PLAIN, 14)); 
         JScrollPane scrollPane = new JScrollPane(txtLog);
 
         panelPrincipal.add(panelControl, BorderLayout.NORTH);

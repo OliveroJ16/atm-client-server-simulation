@@ -9,11 +9,11 @@ public class ClienteATM extends Thread {
     private DataOutputStream out;
     private String servidor;
     private int puerto;
-    private ClienteGUI gui;
+    private ClienteGUI interfaz;
     private boolean conectado = false;
 
-    public ClienteATM(ClienteGUI gui, String servidor, int puerto) {
-        this.gui = gui;
+    public ClienteATM(ClienteGUI interfaz, String servidor, int puerto) {
+        this.interfaz = interfaz;
         this.servidor = servidor;
         this.puerto = puerto;
     }
@@ -26,16 +26,32 @@ public class ClienteATM extends Thread {
             out = new DataOutputStream(socket.getOutputStream());
 
             conectado = true;
-            gui.actualizarEstadoConexion(true);
-            gui.agregarLog("✓ Conectado al Banco en " + servidor + ":" + puerto);
+            interfaz.actualizarEstadoConexion(true);
+            interfaz.agregarLog("CONECTADO AL BANCO: " + servidor + ":" + puerto);
 
-            // Iniciar hilo receptor
-            ReceptorMensajes receptor = new ReceptorMensajes();
-            Thread hiloReceptor = new Thread(receptor);
-            hiloReceptor.start();
+            // Recibir mensajes del servidor
+            while (conectado) {
+                String respuesta = in.readUTF();
+
+                if (respuesta.startsWith("EXITO:")) {
+                    interfaz.agregarLog("--" + respuesta.substring(7));
+                } else if (respuesta.startsWith("ERROR:")) {
+                    interfaz.agregarLog("" + respuesta.substring(7));
+                } else if (respuesta.startsWith("ADIOS:")) {
+                    interfaz.agregarLog("--" + respuesta.substring(7));
+                    break;
+                } else {
+                    interfaz.agregarLog("--" + respuesta);
+                }
+            }
 
         } catch (IOException e) {
-            gui.mostrarError("Error al conectar: " + e.getMessage());
+            if (conectado) {
+                interfaz.agregarLog("**CONEXION PERDIDA CON EL SERVIDOR**");
+                interfaz.actualizarEstadoConexion(false);
+            } else {
+                interfaz.mostrarError("Error al conectar: " + e.getMessage());
+            }
         }
     }
 
@@ -44,9 +60,9 @@ public class ClienteATM extends Thread {
             String solicitud = codigo + ":" + monto;
             out.writeUTF(solicitud);
             out.flush();
-            gui.agregarLog("→ Solicitud enviada: Cliente=" + codigo + ", Monto=$" + monto);
+            interfaz.agregarLog("--Solicitud enviada: Cliente=" + codigo + ", Monto=$" + monto);
         } catch (IOException e) {
-            gui.mostrarError("Error al enviar solicitud: " + e.getMessage());
+            interfaz.mostrarError("Error al enviar solicitud: " + e.getMessage());
             desconectar();
         }
     }
@@ -63,42 +79,15 @@ public class ClienteATM extends Thread {
             }
 
             conectado = false;
-            gui.actualizarEstadoConexion(false);
-            gui.agregarLog("✓ Desconectado del Banco");
+            interfaz.actualizarEstadoConexion(false);
+            interfaz.agregarLog("DESCONECTADO DEL BANCO");
 
         } catch (IOException e) {
-            gui.agregarLog("✗ Error al desconectar: " + e.getMessage());
+            interfaz.agregarLog("--Error al desconectar: " + e.getMessage());
         }
     }
 
     public boolean isConectado() {
         return conectado;
-    }
-
-    // Clase interna para recibir mensajes del servidor
-    private class ReceptorMensajes implements Runnable {
-        public void run() {
-            try {
-                while (conectado) {
-                    String respuesta = in.readUTF();
-
-                    if (respuesta.startsWith("EXITO:")) {
-                        gui.agregarLog("✓ " + respuesta.substring(7));
-                    } else if (respuesta.startsWith("ERROR:")) {
-                        gui.agregarLog("✗ " + respuesta.substring(7));
-                    } else if (respuesta.startsWith("ADIOS:")) {
-                        gui.agregarLog("← " + respuesta.substring(7));
-                        break;
-                    } else {
-                        gui.agregarLog("← " + respuesta);
-                    }
-                }
-            } catch (IOException e) {
-                if (conectado) {
-                    gui.agregarLog("✗ Conexión perdida con el servidor");
-                    gui.actualizarEstadoConexion(false);
-                }
-            }
-        }
     }
 }

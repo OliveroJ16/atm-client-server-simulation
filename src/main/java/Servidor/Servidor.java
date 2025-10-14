@@ -42,7 +42,9 @@ public class Servidor extends Thread {
             interfaz.log("Error al iniciar servidor: " + e.getMessage());
         } finally {
             try {
-                if (serverSocket != null && !serverSocket.isClosed()) serverSocket.close();
+                if (serverSocket != null && !serverSocket.isClosed()) {
+                    serverSocket.close();
+                }
             } catch (IOException e) {
                 e.printStackTrace();
             }
