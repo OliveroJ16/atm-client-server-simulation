@@ -6,7 +6,7 @@ public class Principal {
         interfaz.setVisible(true);
 
         // Registrar listener para botón Iniciar
-        interfaz.addIniciarListener(e -> {
+        interfaz.registrarEventoIniciar(e -> {
             String puertoStr = interfaz.txtPuerto.getText().trim();
             if (puertoStr.isEmpty()) {
                 interfaz.mostrarError("Debe ingresar un puerto");

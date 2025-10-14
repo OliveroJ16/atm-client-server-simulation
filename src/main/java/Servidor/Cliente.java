@@ -2,17 +2,24 @@ package Servidor;
 
 import java.net.Socket;
 import java.io.*;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.HashMap;
 
 public class Cliente extends Thread {
+
     private Socket socket;
-    private Banco banco;
     private DataInputStream entrada;
     private DataOutputStream salida;
     private BancoGUI interfaz;
 
-    public Cliente(Socket socket, Banco banco, BancoGUI interfaz) {
+    // Locks internos para control de concurrencia
+    private final HashMap<Integer, Object> locks = new HashMap<>();
+
+    public Cliente(Socket socket, BancoGUI interfaz) {
         this.socket = socket;
-        this.banco = banco;
         this.interfaz = interfaz;
     }
 
@@ -22,60 +29,31 @@ public class Cliente extends Thread {
             entrada = new DataInputStream(socket.getInputStream());
             salida = new DataOutputStream(socket.getOutputStream());
 
-            // Log conexión inicial
             if (interfaz != null) {
                 interfaz.log("ATM conectado: " + socket.getInetAddress());
             }
 
             while (true) {
                 String solicitud = entrada.readUTF().trim();
-
                 if (solicitud.equalsIgnoreCase("salir")) {
-                    if (interfaz != null) {
-                        interfaz.log("ATM desconectado: " + socket.getInetAddress());
-                    }
                     salida.writeUTF("CONEXIÓN TERMINADA");
                     break;
                 }
 
                 String[] partes = solicitud.split(":");
+                int codigoCliente = Integer.parseInt(partes[0].trim());
+                double monto = Double.parseDouble(partes[1].trim());
 
-                // Validar código cliente
-                int codigoCliente;
-                try {
-                    codigoCliente = Integer.parseInt(partes[0].trim());
-                    if (codigoCliente <= 0) {
-                        salida.writeUTF("ERROR: Código de cliente inválido");
-                        continue;
-                    }
-                } catch (NumberFormatException e) {
-                    salida.writeUTF("ERROR: Código de cliente inválido");
-                    continue;
+                if (interfaz != null) {
+                    interfaz.log("Procesando: Cliente =" + codigoCliente + ", Monto = $" + monto);
                 }
 
-                // Validar monto
-                double monto;
-                try {
-                    monto = Double.parseDouble(partes[1].trim());
-                    if (monto <= 0) {
-                        salida.writeUTF("ERROR: Monto inválido");
-                        continue;
-                    }
-                } catch (NumberFormatException e) {
-                    salida.writeUTF("ERROR: Monto inválido");
-                    continue;
-                }
-
-                interfaz.log("Procesando: Cliente =" + codigoCliente + ", Monto = $" + monto);
-
-                // Procesar retiro
-                String respuesta = banco.retirarDinero(codigoCliente, monto);
-
+                String respuesta = retirarDinero(codigoCliente, monto);
                 salida.writeUTF(respuesta);
                 salida.flush();
             }
 
-        } catch (IOException e) {
+        } catch (Exception e) {
             if (interfaz != null) {
                 interfaz.log("Error con ATM: " + e.getMessage());
             }
@@ -89,6 +67,53 @@ public class Cliente extends Thread {
                 }
             } catch (IOException e) {
                 e.printStackTrace();
+            }
+        }
+    }
+
+    // ------------------- Métodos de "Banco" incorporados -------------------
+
+    private Object obtenerLock(int codigoCliente) {
+        synchronized (locks) {
+            locks.putIfAbsent(codigoCliente, new Object());
+            return locks.get(codigoCliente);
+        }
+    }
+
+    public String retirarDinero(int codigoCliente, double monto) {
+        synchronized (obtenerLock(codigoCliente)) {
+            try (Connection conexion = ConexionBaseDatos.obtenerConexion()) {
+
+                conexion.setAutoCommit(false);
+
+                PreparedStatement psSelect = conexion.prepareStatement(
+                        "SELECT saldo FROM clientes WHERE id = ?");
+                psSelect.setInt(1, codigoCliente);
+                ResultSet rs = psSelect.executeQuery();
+
+                if (!rs.next()) {
+                    conexion.rollback();
+                    return "ERROR: Cliente no encontrado.";
+                }
+
+                double saldoActual = rs.getDouble("saldo");
+
+                if (saldoActual < monto) {
+                    conexion.rollback();
+                    return "ERROR: Fondos insuficientes.";
+                }
+
+                PreparedStatement psUpdate = conexion.prepareStatement(
+                        "UPDATE clientes SET saldo = saldo - ? WHERE id = ?");
+                psUpdate.setDouble(1, monto);
+                psUpdate.setInt(2, codigoCliente);
+                psUpdate.executeUpdate();
+
+                conexion.commit();
+                return "EXITO: Retiro completado. Saldo restante: $" + String.format("%.2f", saldoActual - monto);
+
+            } catch (SQLException e) {
+                return "ERROR: Problema durante la transacción.";
             }
         }
     }
