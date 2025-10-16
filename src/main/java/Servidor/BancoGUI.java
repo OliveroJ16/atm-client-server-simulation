@@ -2,9 +2,9 @@ package Servidor;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionListener;
+import java.awt.event.*;
 
-public class BancoGUI extends JFrame {
+public class BancoGUI extends JFrame implements ActionListener {
 
     protected JButton btnIniciar;
     protected JTextField txtPuerto;
@@ -28,16 +28,17 @@ public class BancoGUI extends JFrame {
         JPanel panelControl = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 5));
 
         panelControl.add(new JLabel("Puerto:"));
-        txtPuerto = new JTextField("5000", 10);
+        txtPuerto = new JTextField("8080", 10);
         panelControl.add(txtPuerto);
 
         btnIniciar = new JButton("Iniciar Servidor");
+        btnIniciar.addActionListener(this);
         panelControl.add(btnIniciar);
 
         // Panel inferior - Log
         txtLog = new JTextArea(15, 30);
         txtLog.setEditable(false);
-        txtLog.setFont(new Font("Monospaced", Font.PLAIN, 14)); 
+        txtLog.setFont(new Font("Monospaced", Font.PLAIN, 14));
         JScrollPane scrollPane = new JScrollPane(txtLog);
 
         panelPrincipal.add(panelControl, BorderLayout.NORTH);
@@ -46,16 +47,34 @@ public class BancoGUI extends JFrame {
         add(panelPrincipal);
     }
 
-    public void log(String mensaje) {
+    @Override
+    public void actionPerformed(ActionEvent evento) {
+        String puertoStr = txtPuerto.getText().trim();
+        if (puertoStr.isEmpty()) {
+            mostrarError("Debe ingresar un puerto");
+            return;
+        }
+
+        try {
+            int puerto = Integer.parseInt(puertoStr);
+
+            Servidor servidor = new Servidor(this, puerto);
+            servidor.start();
+
+            btnIniciar.setEnabled(false);
+            txtPuerto.setEnabled(false);
+
+        } catch (NumberFormatException ex) {
+            mostrarError("El puerto debe ser un número válido");
+        }
+    }
+
+    public void mostrarMensaje(String mensaje) {
         txtLog.append(mensaje + "\n");
         txtLog.setCaretPosition(txtLog.getDocument().getLength());
     }
 
     public void mostrarError(String mensaje) {
         JOptionPane.showMessageDialog(this, mensaje, "Error", JOptionPane.ERROR_MESSAGE);
-    }
-
-    public void registrarEventoIniciar(ActionListener listener) {
-        btnIniciar.addActionListener(listener);
     }
 }

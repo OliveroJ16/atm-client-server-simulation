@@ -29,9 +29,7 @@ public class Cliente extends Thread {
             entrada = new DataInputStream(socket.getInputStream());
             salida = new DataOutputStream(socket.getOutputStream());
 
-            if (interfaz != null) {
-                interfaz.log("ATM conectado: " + socket.getInetAddress());
-            }
+            interfaz.mostrarMensaje("ATM conectado: " + socket.getInetAddress());
 
             while (true) {
                 String solicitud = entrada.readUTF().trim();
@@ -42,28 +40,22 @@ public class Cliente extends Thread {
 
                 String[] partes = solicitud.split(":");
                 int codigoCliente = Integer.parseInt(partes[0].trim());
-                double monto = Double.parseDouble(partes[1].trim());
+                double saldo = Double.parseDouble(partes[1].trim());
 
-                if (interfaz != null) {
-                    interfaz.log("Procesando: Cliente =" + codigoCliente + ", Monto = $" + monto);
-                }
+                interfaz.mostrarMensaje("Cliente N° " + codigoCliente + ", Monto a retirar: $" + saldo);
 
-                String respuesta = retirarDinero(codigoCliente, monto);
+                String respuesta = retirarDinero(codigoCliente, saldo);
                 salida.writeUTF(respuesta);
                 salida.flush();
             }
 
         } catch (Exception e) {
-            if (interfaz != null) {
-                interfaz.log("**ERROR ATM: " + e.getMessage() + "**");
-            }
+            interfaz.mostrarMensaje("**ERROR ATM: " + e.getMessage() + "**");
         } finally {
             try {
                 if (socket != null && !socket.isClosed()) {
                     socket.close();
-                    if (interfaz != null) {
-                        interfaz.log("Conexión cerrada: " + socket.getInetAddress());
-                    }
+                    interfaz.mostrarMensaje("Conexión cerrada: " + socket.getInetAddress());
                 }
             } catch (IOException e) {
                 e.printStackTrace();
@@ -73,7 +65,9 @@ public class Cliente extends Thread {
 
     private Object obtenerLock(int codigoCliente) {
         synchronized (locks) {
-            locks.putIfAbsent(codigoCliente, new Object());
+            if (!locks.containsKey(codigoCliente)) {
+                locks.put(codigoCliente, new Object());
+            }
             return locks.get(codigoCliente);
         }
     }
@@ -112,7 +106,7 @@ public class Cliente extends Thread {
                 psUpdate.executeUpdate();
 
                 conexion.commit();
-                return "--Retiro completado. Saldo restante: $" + String.format("%.2f", saldoActual - monto);
+                return "Retiro completado. Saldo restante: $" + String.format("%.2f", saldoActual - monto);
 
             } catch (SQLException e) {
                 return "**ERROR: PROBLEMA DURANTE LA TRANSACCION**";

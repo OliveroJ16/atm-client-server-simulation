@@ -2,9 +2,9 @@ package Cliente;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionListener;
+import java.awt.event.*;
 
-public class ClienteGUI extends JFrame {
+public class ClienteGUI extends JFrame implements ActionListener {
     private ClienteATM cliente;
 
     protected JTextField txtServidor;
@@ -51,7 +51,7 @@ public class ClienteGUI extends JFrame {
         gbc.fill = GridBagConstraints.NONE;
         panelConexion.add(new JLabel("Puerto:"), gbc);
 
-        txtPuerto = new JTextField("5000");
+        txtPuerto = new JTextField("8080");
         txtPuerto.setPreferredSize(new Dimension(80, 25));
         gbc.gridx = 1;
         gbc.fill = GridBagConstraints.HORIZONTAL;
@@ -59,7 +59,9 @@ public class ClienteGUI extends JFrame {
 
         JPanel panelBotonesConexion = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
         btnConectar = new JButton("Conectar");
+        btnConectar.addActionListener(this);
         btnDesconectar = new JButton("Desconectar");
+        btnDesconectar.addActionListener(this);
         btnDesconectar.setEnabled(false);
         panelBotonesConexion.add(btnConectar);
         panelBotonesConexion.add(btnDesconectar);
@@ -79,7 +81,7 @@ public class ClienteGUI extends JFrame {
 
         gbc.gridx = 0;
         gbc.gridy = 0;
-        panelTransaccion.add(new JLabel("Codigo Cliente:"), gbc);
+        panelTransaccion.add(new JLabel("Código Cliente:"), gbc);
 
         txtCodigo = new JTextField();
         txtCodigo.setPreferredSize(new Dimension(150, 25));
@@ -101,6 +103,7 @@ public class ClienteGUI extends JFrame {
         panelTransaccion.add(txtMonto, gbc);
 
         btnRetirar = new JButton("Realizar Retiro");
+        btnRetirar.addActionListener(this);
         btnRetirar.setEnabled(false);
 
         JPanel panelBotonRetiro = new JPanel(new FlowLayout(FlowLayout.CENTER));
@@ -117,7 +120,7 @@ public class ClienteGUI extends JFrame {
         JPanel panelLog = new JPanel(new BorderLayout());
         txtAreaLog = new JTextArea(10, 40);
         txtAreaLog.setEditable(false);
-        txtAreaLog.setFont(new Font("Monospaced", Font.PLAIN, 14)); 
+        txtAreaLog.setFont(new Font("Monospaced", Font.PLAIN, 14));
         JScrollPane scrollPane = new JScrollPane(txtAreaLog);
         panelLog.add(scrollPane, BorderLayout.CENTER);
 
@@ -132,16 +135,67 @@ public class ClienteGUI extends JFrame {
         add(panelPrincipal);
     }
 
-    public void registrarConexion(ActionListener listener) {
-        btnConectar.addActionListener(listener);
-    }
+    @Override
+    public void actionPerformed(ActionEvent evento) {
+        Object source = evento.getSource();
 
-    public void registrarDesconexion(ActionListener listener) {
-        btnDesconectar.addActionListener(listener);
-    }
+        if (source == btnConectar) {
+            String servidor = txtServidor.getText().trim();
+            String puertoStr = txtPuerto.getText().trim();
 
-    public void registrarRetiro(ActionListener listener) {
-        btnRetirar.addActionListener(listener);
+            if (servidor.isEmpty() || puertoStr.isEmpty()) {
+                mostrarError("Debe ingresar servidor y puerto");
+                return;
+            }
+
+            try {
+                int puerto = Integer.parseInt(puertoStr);
+                cliente = new ClienteATM(this, servidor, puerto);
+                cliente.start();
+                setCliente(cliente);
+
+            } catch (NumberFormatException ex) {
+                mostrarError("El puerto debe ser un número válido");
+            }
+        }
+
+        else if (source == btnDesconectar) {
+            if (cliente != null) {
+                cliente.desconectar();
+                cliente = null;
+            }
+        }
+
+ 
+        else if (source == btnRetirar) {
+            String codigo = getCodigoCliente();
+            String montoStr = getMontoTexto();
+
+            if (codigo.isEmpty() || montoStr.isEmpty()) {
+                mostrarError("Debe ingresar código y monto");
+                return;
+            }
+
+            try {
+                double monto = Double.parseDouble(montoStr);
+
+                if (monto <= 0) {
+                    mostrarError("El monto debe ser mayor a cero");
+                    return;
+                }
+
+                if (cliente == null || !cliente.isConectado()) {
+                    mostrarError("No hay conexión activa");
+                    return;
+                }
+
+                cliente.enviarRetiro(codigo, monto);
+                limpiarCampos();
+
+            } catch (NumberFormatException ex) {
+                mostrarError("El monto debe ser un número válido");
+            }
+        }
     }
 
     public void setCliente(ClienteATM cliente) {

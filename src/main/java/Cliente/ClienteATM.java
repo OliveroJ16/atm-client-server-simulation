@@ -36,7 +36,7 @@ public class ClienteATM extends Thread {
                 if (respuesta.startsWith("EXITO:")) {
                     interfaz.agregarLog("--" + respuesta.substring(7));
                 } else if (respuesta.startsWith("ERROR:")) {
-                    interfaz.agregarLog("" + respuesta.substring(7));
+                    interfaz.agregarLog(respuesta.substring(7));
                 } else if (respuesta.startsWith("ADIOS:")) {
                     interfaz.agregarLog("--" + respuesta.substring(7));
                     break;

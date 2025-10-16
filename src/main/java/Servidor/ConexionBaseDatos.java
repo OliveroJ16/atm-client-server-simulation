@@ -5,7 +5,9 @@ import java.sql.SQLException;
 
 public class ConexionBaseDatos{
 
-    //psql -h localhost -U postgres -d banco
+
+    //sudo systemctl start postgresql           iniciar el servidor
+    //psql -h localhost -U postgres -d banco    acceder a la base de datos
 
     private static final String URL = "jdbc:postgresql://localhost:5432/banco";
     private static final String USER = "postgres";
